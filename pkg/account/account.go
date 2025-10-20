@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	// AddressPrefix is the prefix for TRC addresses
-	AddressPrefix = "trc"
+	// AddressPrefix is the prefix for EVM-compatible addresses
+	AddressPrefix = "0x"
 	
 	// AddressLength is the length of the address in bytes (same as Ethereum)
 	AddressLength = 20
@@ -59,36 +59,36 @@ func PublicKeyToAddress(publicKey *ecdsa.PublicKey) string {
 	// Convert public key to bytes (uncompressed format)
 	pubBytes := crypto.FromECDSAPub(publicKey)
 	
-	// Hash the public key using BLAKE3
-	hasher := blake3.New()
-	hasher.Write(pubBytes)
-	hash := hasher.Sum(nil)
+	// Use Ethereum's Keccak256 hash instead of BLAKE3 for EVM compatibility
+	hash := crypto.Keccak256(pubBytes[1:]) // Skip the first byte (0x04 prefix)
 	
 	// Take the last 20 bytes (same as Ethereum)
 	address := hash[len(hash)-AddressLength:]
 	
-	// Convert to hex and add prefix
+	// Convert to hex and add 0x prefix
 	return fmt.Sprintf("%s%s", AddressPrefix, hex.EncodeToString(address))
 }
 
-// AddressFromHex converts a hex string to an address
-func AddressFromHex(hexAddress string) (string, error) {
-	// Remove prefix if present
-	hexAddress = strings.TrimPrefix(hexAddress, AddressPrefix)
+// AddressFromHex creates an address from a hex string
+func AddressFromHex(hexStr string) (string, error) {
+	// Remove 0x prefix if present
+	if strings.HasPrefix(hexStr, "0x") {
+		hexStr = hexStr[2:]
+	}
 	
-	// Decode hex
-	bytes, err := hex.DecodeString(hexAddress)
+	// Validate hex string length
+	if len(hexStr) != AddressLength*2 {
+		return "", fmt.Errorf("invalid address length: expected %d characters, got %d", AddressLength*2, len(hexStr))
+	}
+	
+	// Validate hex format
+	_, err := hex.DecodeString(hexStr)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("invalid hex format: %v", err)
 	}
 	
-	// Check length
-	if len(bytes) != AddressLength {
-		return "", fmt.Errorf("invalid address length: expected %d, got %d", AddressLength, len(bytes))
-	}
-	
-	// Add prefix
-	return fmt.Sprintf("%s%s", AddressPrefix, hexAddress), nil
+	// Return with 0x prefix
+	return fmt.Sprintf("%s%s", AddressPrefix, hexStr), nil
 }
 
 // ImportFromPrivateKeyHex imports an account from a hex-encoded private key

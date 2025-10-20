@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package pb;
+
+option go_package = "github.com/torcnet/torcnet/pb";
+
+// WalletData represents the wallet storage format
+message WalletData {
+  repeated AccountData accounts = 1;
+  string default_account = 2;
+  int64 created_at = 3;
+  int64 updated_at = 4;
+}
+
+// AccountData represents individual account storage
+message AccountData {
+  string address = 1;
+  string key_file = 2;  // Path to encrypted keyfile
+  int64 created_at = 3;
+}
+
+// Account represents an account with its cryptographic keys
+message Account {
+  string address = 1;
+  bytes private_key = 2;  // For internal use only, not for storage
+  bytes public_key = 3;
+  int64 created_at = 4;
+}
+
+// EncryptedKey represents an encrypted private key file
+message EncryptedKey {
+  string address = 1;
+  CryptoKey crypto = 2;
+  string id = 3;
+  int32 version = 4;
+  int64 timestamp = 5;
+}
+
+// CryptoKey contains the encrypted private key and parameters
+message CryptoKey {
+  string cipher = 1;
+  string cipher_text = 2;
+  CipherParams cipher_params = 3;
+  string kdf = 4;
+  KDFParams kdf_params = 5;
+  string mac = 6;
+}
+
+// CipherParams contains cipher parameters
+message CipherParams {
+  string iv = 1;
+}
+
+// KDFParams contains key derivation function parameters
+message KDFParams {
+  int32 dklen = 1;
+  int32 n = 2;
+  int32 p = 3;
+  int32 r = 4;
+  string salt = 5;
+}

@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package pb;
+
+option go_package = "github.com/torcnet/torcnet/pb";
+
+// Account represents an account in the blockchain state
+message StateAccount {
+  string address = 1;
+  uint64 balance = 2;
+  uint64 nonce = 3;
+  bytes code = 4;
+  map<string, bytes> storage = 5;
+  int64 created_at = 6;
+  int64 updated_at = 7;
+}
+
+// AccountDiff represents changes to an account
+message AccountDiff {
+  string address = 1;
+  uint64 old_balance = 2;
+  uint64 new_balance = 3;
+  uint64 old_nonce = 4;
+  uint64 new_nonce = 5;
+  bytes old_code = 6;
+  bytes new_code = 7;
+}
+
+// StorageDiff represents changes to account storage
+message StorageDiff {
+  string address = 1;
+  string key = 2;
+  bytes old_value = 3;
+  bytes new_value = 4;
+}
+
+// StateSnapshot represents a snapshot of the blockchain state
+message StateSnapshot {
+  repeated StateAccount accounts = 1;
+  repeated AccountDiff account_diffs = 2;
+  repeated StorageDiff storage_diffs = 3;
+  int64 timestamp = 4;
+  uint64 block_number = 5;
+}

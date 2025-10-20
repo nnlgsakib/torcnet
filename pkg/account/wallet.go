@@ -1,7 +1,6 @@
 package account
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -10,37 +9,29 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/torcnet/torcnet/pb"
+	"github.com/torcnet/torcnet/pkg/keystore"
+	"google.golang.org/protobuf/proto"
 )
 
 // Wallet manages multiple accounts
 type Wallet struct {
-	Accounts     map[string]*Account
+	Accounts       map[string]*Account
 	DefaultAccount string
-	mu          sync.RWMutex
-	walletPath  string
+	mu             sync.RWMutex
+	walletPath     string
+	keyStore       *keystore.KeyStore
 }
 
-// WalletData represents the data structure for wallet storage
-type WalletData struct {
-	Accounts     []AccountData `json:"accounts"`
-	DefaultAccount string      `json:"default_account"`
-	CreatedAt    int64         `json:"created_at"`
-	UpdatedAt    int64         `json:"updated_at"`
-}
-
-// AccountData represents the data structure for account storage
-type AccountData struct {
-	Address    string `json:"address"`
-	PrivateKey string `json:"private_key"`
-	CreatedAt  int64  `json:"created_at"`
-}
+// WalletData and AccountData are now defined in pb/account.proto
+// Remove the old struct definitions as they're replaced by protobuf
 
 // NewWallet creates a new wallet
 func NewWallet(walletPath string) (*Wallet, error) {
 	wallet := &Wallet{
-		Accounts:    make(map[string]*Account),
-		walletPath:  walletPath,
+		Accounts:   make(map[string]*Account),
+		walletPath: walletPath,
+		keyStore:   keystore.NewKeyStore(filepath.Join(filepath.Dir(walletPath), "keystore")),
 	}
 
 	// Create wallet directory if it doesn't exist
@@ -68,6 +59,12 @@ func (w *Wallet) CreateAccount() (*Account, error) {
 		return nil, err
 	}
 
+	// Store encrypted private key
+	keyPath, err := w.keyStore.StoreKey(account.PrivateKey, "") // Empty password for now
+	if err != nil {
+		return nil, fmt.Errorf("failed to store key: %v", err)
+	}
+
 	w.Accounts[account.Address] = account
 
 	// Set as default if it's the first account
@@ -75,8 +72,8 @@ func (w *Wallet) CreateAccount() (*Account, error) {
 		w.DefaultAccount = account.Address
 	}
 
-	// Save wallet
-	if err := w.Save(); err != nil {
+	// Save wallet with keyfile reference
+	if err := w.saveWithKeyFile(account.Address, keyPath); err != nil {
 		return nil, err
 	}
 
@@ -98,6 +95,12 @@ func (w *Wallet) ImportAccount(privateKeyHex string) (*Account, error) {
 		return nil, errors.New("account already exists in wallet")
 	}
 
+	// Store encrypted private key
+	keyPath, err := w.keyStore.StoreKey(account.PrivateKey, "") // Empty password for now
+	if err != nil {
+		return nil, fmt.Errorf("failed to store key: %v", err)
+	}
+
 	w.Accounts[account.Address] = account
 
 	// Set as default if it's the first account
@@ -105,8 +108,8 @@ func (w *Wallet) ImportAccount(privateKeyHex string) (*Account, error) {
 		w.DefaultAccount = account.Address
 	}
 
-	// Save wallet
-	if err := w.Save(); err != nil {
+	// Save wallet with keyfile reference
+	if err := w.saveWithKeyFile(account.Address, keyPath); err != nil {
 		return nil, err
 	}
 
@@ -193,45 +196,99 @@ func (w *Wallet) RemoveAccount(address string) error {
 	return w.Save()
 }
 
-// Save saves the wallet to disk
-func (w *Wallet) Save() error {
-	// Convert wallet to storage format
-	data := WalletData{
-		Accounts:     make([]AccountData, 0, len(w.Accounts)),
-		DefaultAccount: w.DefaultAccount,
-		UpdatedAt:    time.Now().Unix(),
+// saveWithKeyFile saves wallet data with keyfile reference for a specific account
+func (w *Wallet) saveWithKeyFile(address, keyPath string) error {
+	// Load existing wallet data
+	var data *pb.WalletData
+	if protoData, err := ioutil.ReadFile(w.walletPath); err == nil {
+		data = &pb.WalletData{}
+		if err := proto.Unmarshal(protoData, data); err != nil {
+			// If unmarshal fails, create new data
+			data = &pb.WalletData{
+				Accounts:       make([]*pb.AccountData, 0),
+				DefaultAccount: w.DefaultAccount,
+				CreatedAt:      time.Now().Unix(),
+			}
+		}
+	} else {
+		data = &pb.WalletData{
+			Accounts:       make([]*pb.AccountData, 0),
+			DefaultAccount: w.DefaultAccount,
+			CreatedAt:      time.Now().Unix(),
+		}
 	}
 
-	for _, account := range w.Accounts {
-		accountData := AccountData{
-			Address:    account.Address,
-			PrivateKey: account.ExportPrivateKeyHex(),
-			CreatedAt:  time.Now().Unix(),
+	// Update or add account data
+	found := false
+	for _, accountData := range data.Accounts {
+		if accountData.Address == address {
+			accountData.KeyFile = keyPath
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		accountData := &pb.AccountData{
+			Address:   address,
+			KeyFile:   keyPath,
+			CreatedAt: time.Now().Unix(),
 		}
 		data.Accounts = append(data.Accounts, accountData)
 	}
 
-	// Marshal to JSON
-	jsonData, err := json.MarshalIndent(data, "", "  ")
+	data.DefaultAccount = w.DefaultAccount
+	data.UpdatedAt = time.Now().Unix()
+
+	// Marshal to protobuf
+	protoData, err := proto.Marshal(data)
 	if err != nil {
 		return err
 	}
 
 	// Write to file
-	return ioutil.WriteFile(w.walletPath, jsonData, 0600)
+	return ioutil.WriteFile(w.walletPath, protoData, 0600)
+}
+
+// Save saves the wallet to disk (deprecated - use saveWithKeyFile for new accounts)
+func (w *Wallet) Save() error {
+	// Convert wallet to storage format
+	data := &pb.WalletData{
+		Accounts:       make([]*pb.AccountData, 0, len(w.Accounts)),
+		DefaultAccount: w.DefaultAccount,
+		UpdatedAt:      time.Now().Unix(),
+	}
+
+	for _, account := range w.Accounts {
+		accountData := &pb.AccountData{
+			Address:   account.Address,
+			KeyFile:   "", // No keyfile for legacy accounts
+			CreatedAt: time.Now().Unix(),
+		}
+		data.Accounts = append(data.Accounts, accountData)
+	}
+
+	// Marshal to protobuf
+	protoData, err := proto.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	// Write to file
+	return ioutil.WriteFile(w.walletPath, protoData, 0600)
 }
 
 // Load loads the wallet from disk
 func (w *Wallet) Load() error {
 	// Read file
-	jsonData, err := ioutil.ReadFile(w.walletPath)
+	protoData, err := ioutil.ReadFile(w.walletPath)
 	if err != nil {
 		return err
 	}
 
-	// Unmarshal JSON
-	var data WalletData
-	if err := json.Unmarshal(jsonData, &data); err != nil {
+	// Unmarshal protobuf
+	var data pb.WalletData
+	if err := proto.Unmarshal(protoData, &data); err != nil {
 		return err
 	}
 
@@ -240,14 +297,23 @@ func (w *Wallet) Load() error {
 
 	// Load accounts
 	for _, accountData := range data.Accounts {
-		privateKey, err := crypto.HexToECDSA(accountData.PrivateKey)
-		if err != nil {
-			return fmt.Errorf("invalid private key for address %s: %v", accountData.Address, err)
-		}
+		var account *Account
 
-		account, err := NewAccountFromPrivateKey(privateKey)
-		if err != nil {
-			return err
+		if accountData.KeyFile != "" {
+			// Load from encrypted keyfile
+			privateKey, err := w.keyStore.LoadKey(accountData.KeyFile, "") // Empty password for now
+			if err != nil {
+				return fmt.Errorf("failed to load key from %s: %v", accountData.KeyFile, err)
+			}
+
+			account, err = NewAccountFromPrivateKey(privateKey)
+			if err != nil {
+				return err
+			}
+		} else {
+			// Legacy: load from plain private key (if still present in old format)
+			// This is for backward compatibility only
+			return fmt.Errorf("legacy private key format no longer supported for address %s", accountData.Address)
 		}
 
 		// Verify address matches

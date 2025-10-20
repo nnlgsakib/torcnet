@@ -31,23 +31,25 @@ type SnapshotManager struct {
 }
 
 // StateSnapshot represents a complete state snapshot at a specific version
+// Note: StateSnapshot struct is now defined in pb/state.proto
+// This is a wrapper for compatibility
 type StateSnapshot struct {
-	Version     uint64                 `json:"version"`
-	Timestamp   time.Time             `json:"timestamp"`
-	RootHash    []byte                `json:"root_hash"`
-	BlockHeight uint64                `json:"block_height"`
-	Accounts    map[string]*Account   `json:"accounts"`
-	Storage     map[string][]byte     `json:"storage"`
-	Metadata    *SnapshotMetadata     `json:"metadata"`
+	Version     uint64
+	Timestamp   time.Time
+	RootHash    []byte
+	BlockHeight uint64
+	Accounts    map[string]*Account
+	Storage     map[string][]byte
+	Metadata    *SnapshotMetadata
 	
 	// Compression info
-	Compressed   bool   `json:"compressed"`
-	CompressionType string `json:"compression_type"`
-	OriginalSize uint64 `json:"original_size"`
-	CompressedSize uint64 `json:"compressed_size"`
+	Compressed   bool
+	CompressionType string
+	OriginalSize uint64
+	CompressedSize uint64
 	
 	// Merkle proof for verification
-	MerkleProof [][]byte `json:"merkle_proof"`
+	MerkleProof [][]byte
 }
 
 // SnapshotMetadata contains additional snapshot information

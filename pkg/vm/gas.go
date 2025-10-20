@@ -242,35 +242,190 @@ func (gc *GasCalculator) ValidateGasLimit(gasLimit uint64) error {
 	return nil
 }
 
-// EstimateGas estimates gas usage for a transaction
-func (gc *GasCalculator) EstimateGas(tx *EVMTransaction) (uint64, error) {
-	// Start with intrinsic gas
-	isCreate := len(tx.To) == 0
-	intrinsicGas := gc.CalculateIntrinsicGas(tx.Data, isCreate)
-	
-	// Add estimated execution gas based on operation type
-	var executionGas uint64
-	
-	if isCreate {
-		// Contract creation
-		executionGas = gc.CalculateCreateGas(uint64(len(tx.Data)))
-	} else {
-		// Contract call or simple transfer
-		if len(tx.Data) > 0 {
-			// Estimate based on data size and complexity
-			executionGas = GasCall + uint64(len(tx.Data))*GasFastStep
-		} else {
-			// Simple transfer
-			executionGas = 0
-		}
+// EstimateGasForOperation estimates gas for specific EVM operations
+func (gc *GasCalculator) EstimateGasForOperation(opcode byte, stackSize int, memorySize uint64) (uint64, error) {
+	switch opcode {
+	case 0x00: // STOP
+		return 0, nil
+	case 0x01: // ADD
+		return GasFastestStep, nil
+	case 0x02: // MUL
+		return GasFastStep, nil
+	case 0x03: // SUB
+		return GasFastestStep, nil
+	case 0x04: // DIV
+		return GasFastStep, nil
+	case 0x05: // SDIV
+		return GasFastStep, nil
+	case 0x06: // MOD
+		return GasFastStep, nil
+	case 0x07: // SMOD
+		return GasFastStep, nil
+	case 0x08: // ADDMOD
+		return GasMidStep, nil
+	case 0x09: // MULMOD
+		return GasMidStep, nil
+	case 0x0a: // EXP
+		// EXP gas calculation requires the exponent value
+		return GasExp, nil
+	case 0x10: // LT
+		return GasFastestStep, nil
+	case 0x11: // GT
+		return GasFastestStep, nil
+	case 0x12: // SLT
+		return GasFastestStep, nil
+	case 0x13: // SGT
+		return GasFastestStep, nil
+	case 0x14: // EQ
+		return GasFastestStep, nil
+	case 0x15: // ISZERO
+		return GasFastestStep, nil
+	case 0x16: // AND
+		return GasFastestStep, nil
+	case 0x17: // OR
+		return GasFastestStep, nil
+	case 0x18: // XOR
+		return GasFastestStep, nil
+	case 0x19: // NOT
+		return GasFastestStep, nil
+	case 0x1a: // BYTE
+		return GasFastestStep, nil
+	case 0x20: // SHA3
+		return GasSha3, nil
+	case 0x30: // ADDRESS
+		return GasQuickStep, nil
+	case 0x31: // BALANCE
+		return GasBalance, nil
+	case 0x32: // ORIGIN
+		return GasQuickStep, nil
+	case 0x33: // CALLER
+		return GasQuickStep, nil
+	case 0x34: // CALLVALUE
+		return GasQuickStep, nil
+	case 0x35: // CALLDATALOAD
+		return GasFastestStep, nil
+	case 0x36: // CALLDATASIZE
+		return GasQuickStep, nil
+	case 0x37: // CALLDATACOPY
+		return GasFastestStep, nil
+	case 0x38: // CODESIZE
+		return GasQuickStep, nil
+	case 0x39: // CODECOPY
+		return GasFastestStep, nil
+	case 0x3a: // GASPRICE
+		return GasQuickStep, nil
+	case 0x3b: // EXTCODESIZE
+		return GasExtCode, nil
+	case 0x3c: // EXTCODECOPY
+		return GasExtCode, nil
+	case 0x3f: // EXTCODEHASH
+		return GasExtCodeHash, nil
+	case 0x40: // BLOCKHASH
+		return GasBlockhash, nil
+	case 0x41: // COINBASE
+		return GasQuickStep, nil
+	case 0x42: // TIMESTAMP
+		return GasQuickStep, nil
+	case 0x43: // NUMBER
+		return GasQuickStep, nil
+	case 0x44: // DIFFICULTY
+		return GasQuickStep, nil
+	case 0x45: // GASLIMIT
+		return GasQuickStep, nil
+	case 0x50: // POP
+		return GasQuickStep, nil
+	case 0x51: // MLOAD
+		return GasFastestStep, nil
+	case 0x52: // MSTORE
+		return GasFastestStep, nil
+	case 0x53: // MSTORE8
+		return GasFastestStep, nil
+	case 0x54: // SLOAD
+		return 0, nil // SLOAD gas is complex and depends on state
+	case 0x55: // SSTORE
+		return 0, nil // SSTORE gas is complex and depends on state
+	case 0x56: // JUMP
+		return GasMidStep, nil
+	case 0x57: // JUMPI
+		return GasSlowStep, nil
+	case 0x58: // PC
+		return GasQuickStep, nil
+	case 0x59: // MSIZE
+		return GasQuickStep, nil
+	case 0x5a: // GAS
+		return GasQuickStep, nil
+	case 0x5b: // JUMPDEST
+		return GasJumpDest, nil
+	case 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f: // PUSH1-PUSH16
+		return GasFastestStep, nil
+	case 0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7a, 0x7b, 0x7c, 0x7d, 0x7e, 0x7f: // PUSH17-PUSH32
+		return GasFastestStep, nil
+	case 0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f: // DUP1-DUP16
+		return GasFastestStep, nil
+	case 0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f: // SWAP1-SWAP16
+		return GasFastestStep, nil
+	case 0xa0: // LOG0
+		return GasLog, nil
+	case 0xa1: // LOG1
+		return GasLog + GasLogTopic, nil
+	case 0xa2: // LOG2
+		return GasLog + 2*GasLogTopic, nil
+	case 0xa3: // LOG3
+		return GasLog + 3*GasLogTopic, nil
+	case 0xa4: // LOG4
+		return GasLog + 4*GasLogTopic, nil
+	case 0xf0: // CREATE
+		return GasCreate, nil
+	case 0xf1: // CALL
+		return GasCall, nil
+	case 0xf2: // CALLCODE
+		return GasCall, nil
+	case 0xf3: // RETURN
+		return 0, nil
+	case 0xf4: // DELEGATECALL
+		return GasCall, nil
+	case 0xf5: // CREATE2
+		return GasCreate, nil
+	case 0xfa: // STATICCALL
+		return GasCall, nil
+	case 0xfd: // REVERT
+		return 0, nil
+	case 0xfe: // INVALID
+		return 0, fmt.Errorf("invalid opcode")
+	case 0xff: // SELFDESTRUCT
+		return 0, nil // SELFDESTRUCT gas is complex
+	default:
+		return 0, fmt.Errorf("unknown opcode: 0x%02x", opcode)
+	}
+}
+
+// CalculatePrecompiledGas calculates gas for precompiled contracts
+func (gc *GasCalculator) CalculatePrecompiledGas(address []byte, input []byte) (uint64, error) {
+	if len(address) != 20 {
+		return 0, fmt.Errorf("invalid precompiled contract address")
 	}
 	
-	totalGas := intrinsicGas + executionGas
+	// Check if it's a precompiled contract (addresses 1-9)
+	var addr uint64
+	for i := 12; i < 20; i++ {
+		addr = addr*256 + uint64(address[i])
+	}
 	
-	// Add safety margin (10%)
-	totalGas = totalGas + (totalGas / 10)
-	
-	return totalGas, nil
+	switch addr {
+	case 1: // ecRecover
+		return GasEcRecover, nil
+	case 2: // SHA256
+		words := (uint64(len(input)) + 31) / 32
+		return GasSha256 + words*GasSha256Word, nil
+	case 3: // RIPEMD160
+		words := (uint64(len(input)) + 31) / 32
+		return GasRipemd160 + words*GasRipemd160Word, nil
+	case 4: // Identity
+		words := (uint64(len(input)) + 31) / 32
+		return GasIdentity + words*GasIdentityWord, nil
+	default:
+		return 0, fmt.Errorf("unknown precompiled contract at address %d", addr)
+	}
 }
 
 // GasTracker tracks gas usage during execution

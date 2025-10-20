@@ -1,12 +1,13 @@
 package state
 
 import (
-	"encoding/json"
 	"fmt"
 	"runtime"
 	"sync"
 
+	"github.com/torcnet/torcnet/pb"
 	"github.com/torcnet/torcnet/pkg/db"
+	"google.golang.org/protobuf/proto"
 )
 
 // State represents the global state of the blockchain
@@ -19,17 +20,26 @@ type State struct {
 }
 
 // Account represents an account in the state
+// Note: Account struct is now defined in pb/state.proto as StateAccount
+// This is a wrapper for compatibility
 type Account struct {
-	Address  string `json:"address"`
-	Balance  uint64 `json:"balance"`
-	Nonce    uint64 `json:"nonce"`
-	CodeHash []byte `json:"code_hash,omitempty"`
-	Storage  map[string][]byte `json:"storage,omitempty"`
+	Address  string
+	Balance  uint64
+	Nonce    uint64
+	CodeHash []byte
+	Storage  map[string][]byte
 }
 
-// Serialize serializes the account to JSON bytes
+// Serialize serializes the account to protobuf bytes
 func (a *Account) Serialize() []byte {
-	data, _ := json.Marshal(a)
+	pbAccount := &pb.StateAccount{
+		Address: a.Address,
+		Balance: a.Balance,
+		Nonce:   a.Nonce,
+		Code:    a.CodeHash, // Note: protobuf uses 'Code' field instead of 'CodeHash'
+		Storage: a.Storage,
+	}
+	data, _ := proto.Marshal(pbAccount)
 	return data
 }
 
@@ -62,8 +72,18 @@ func (s *State) GetAccount(address string) (*Account, error) {
 	}
 
 	var account Account
-	if err := json.Unmarshal(data, &account); err != nil {
+	var pbAccount pb.StateAccount
+	if err := proto.Unmarshal(data, &pbAccount); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal account: %v", err)
+	}
+	
+	// Convert from protobuf to local struct
+	account = Account{
+		Address:  pbAccount.Address,
+		Balance:  pbAccount.Balance,
+		Nonce:    pbAccount.Nonce,
+		CodeHash: pbAccount.Code, // Note: protobuf uses 'Code' field instead of 'CodeHash'
+		Storage:  pbAccount.Storage,
 	}
 
 	// Add to cache
@@ -81,7 +101,16 @@ func (s *State) GetAccount(address string) (*Account, error) {
 
 // UpdateAccount updates an account in the state
 func (s *State) UpdateAccount(account *Account) error {
-	data, err := json.Marshal(account)
+	// Convert to protobuf
+	pbAccount := &pb.StateAccount{
+		Address: account.Address,
+		Balance: account.Balance,
+		Nonce:   account.Nonce,
+		Code:    account.CodeHash, // Note: protobuf uses 'Code' field instead of 'CodeHash'
+		Storage: account.Storage,
+	}
+	
+	data, err := proto.Marshal(pbAccount)
 	if err != nil {
 		return fmt.Errorf("failed to marshal account: %v", err)
 	}
@@ -120,7 +149,16 @@ func (s *State) CreateAccount(address string, initialBalance uint64) (*Account, 
 	}
 	
 	// Update trie
-	data, err := json.Marshal(account)
+	// Convert to protobuf
+	pbAccount := &pb.StateAccount{
+		Address: account.Address,
+		Balance: account.Balance,
+		Nonce:   account.Nonce,
+		Code:    account.CodeHash, // Note: protobuf uses 'Code' field instead of 'CodeHash'
+		Storage: account.Storage,
+	}
+	
+	data, err := proto.Marshal(pbAccount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal account: %v", err)
 	}
