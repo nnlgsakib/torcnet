@@ -8,66 +8,66 @@ import (
 // Gas constants for EVM operations
 const (
 	// Base gas costs
-	GasQuickStep    uint64 = 2
-	GasFastestStep  uint64 = 3
-	GasFastStep     uint64 = 5
-	GasMidStep      uint64 = 8
-	GasSlowStep     uint64 = 10
-	GasExtStep      uint64 = 20
+	GasQuickStep   uint64 = 2
+	GasFastestStep uint64 = 3
+	GasFastStep    uint64 = 5
+	GasMidStep     uint64 = 8
+	GasSlowStep    uint64 = 10
+	GasExtStep     uint64 = 20
 
 	// Memory operations
-	GasMemory       uint64 = 3
-	GasQuadDivisor  uint64 = 512
+	GasMemory      uint64 = 3
+	GasQuadDivisor uint64 = 512
 
 	// Storage operations
-	GasSSet         uint64 = 20000
-	GasSReset       uint64 = 5000
-	GasSClear       uint64 = 15000
-	GasRefundClear  uint64 = 15000
+	GasSSet        uint64 = 20000
+	GasSReset      uint64 = 5000
+	GasSClear      uint64 = 15000
+	GasRefundClear uint64 = 15000
 
 	// Transaction costs
-	GasTransaction  uint64 = 21000
-	GasTxCreate     uint64 = 32000
-	GasTxDataZero   uint64 = 4
+	GasTransaction   uint64 = 21000
+	GasTxCreate      uint64 = 32000
+	GasTxDataZero    uint64 = 4
 	GasTxDataNonZero uint64 = 16
 
 	// Contract operations
-	GasCreate       uint64 = 32000
-	GasCall         uint64 = 700
-	GasCallValue    uint64 = 9000
-	GasCallStipend  uint64 = 2300
-	GasNewAccount   uint64 = 25000
-	GasExp          uint64 = 10
-	GasExpByte      uint64 = 50
+	GasCreate      uint64 = 32000
+	GasCall        uint64 = 700
+	GasCallValue   uint64 = 9000
+	GasCallStipend uint64 = 2300
+	GasNewAccount  uint64 = 25000
+	GasExp         uint64 = 10
+	GasExpByte     uint64 = 50
 
 	// Cryptographic operations
-	GasSha3         uint64 = 30
-	GasSha3Word     uint64 = 6
-	GasCopy         uint64 = 3
-	GasEcRecover    uint64 = 3000
-	GasSha256       uint64 = 60
-	GasSha256Word   uint64 = 12
-	GasRipemd160    uint64 = 600
+	GasSha3          uint64 = 30
+	GasSha3Word      uint64 = 6
+	GasCopy          uint64 = 3
+	GasEcRecover     uint64 = 3000
+	GasSha256        uint64 = 60
+	GasSha256Word    uint64 = 12
+	GasRipemd160     uint64 = 600
 	GasRipemd160Word uint64 = 120
-	GasIdentity     uint64 = 15
-	GasIdentityWord uint64 = 3
+	GasIdentity      uint64 = 15
+	GasIdentityWord  uint64 = 3
 
 	// Log operations
-	GasLog          uint64 = 375
-	GasLogData      uint64 = 8
-	GasLogTopic     uint64 = 375
+	GasLog      uint64 = 375
+	GasLogData  uint64 = 8
+	GasLogTopic uint64 = 375
 
 	// Jump operations
-	GasJumpDest     uint64 = 1
+	GasJumpDest uint64 = 1
 
 	// Block operations
-	GasBalance      uint64 = 700
-	GasExtCode      uint64 = 700
-	GasExtCodeHash  uint64 = 700
-	GasBlockhash    uint64 = 20
+	GasBalance     uint64 = 700
+	GasExtCode     uint64 = 700
+	GasExtCodeHash uint64 = 700
+	GasBlockhash   uint64 = 20
 
 	// Maximum gas limit
-	MaxGasLimit     uint64 = 30000000
+	MaxGasLimit uint64 = 30000000
 )
 
 // GasCalculator handles gas calculations for EVM operations
@@ -85,11 +85,11 @@ func NewGasCalculator(gasPrice *big.Int) *GasCalculator {
 // CalculateIntrinsicGas calculates the intrinsic gas for a transaction
 func (gc *GasCalculator) CalculateIntrinsicGas(data []byte, isContractCreation bool) uint64 {
 	gas := GasTransaction
-	
+
 	if isContractCreation {
 		gas += GasTxCreate
 	}
-	
+
 	// Add gas for transaction data
 	for _, b := range data {
 		if b == 0 {
@@ -98,7 +98,7 @@ func (gc *GasCalculator) CalculateIntrinsicGas(data []byte, isContractCreation b
 			gas += GasTxDataNonZero
 		}
 	}
-	
+
 	return gas
 }
 
@@ -107,14 +107,14 @@ func (gc *GasCalculator) CalculateMemoryGas(oldSize, newSize uint64) uint64 {
 	if newSize <= oldSize {
 		return 0
 	}
-	
+
 	oldCost := gc.memoryGasCost(oldSize)
 	newCost := gc.memoryGasCost(newSize)
-	
+
 	if newCost < oldCost {
 		return 0
 	}
-	
+
 	return newCost - oldCost
 }
 
@@ -123,11 +123,11 @@ func (gc *GasCalculator) memoryGasCost(size uint64) uint64 {
 	if size == 0 {
 		return 0
 	}
-	
+
 	// Memory cost = (size * GasMemory) + (size^2 / GasQuadDivisor)
 	linearCost := size * GasMemory
 	quadraticCost := (size * size) / GasQuadDivisor
-	
+
 	return linearCost + quadraticCost
 }
 
@@ -135,10 +135,10 @@ func (gc *GasCalculator) memoryGasCost(size uint64) uint64 {
 func (gc *GasCalculator) CalculateStorageGas(oldValue, newValue []byte) (uint64, int64) {
 	oldIsZero := isZero(oldValue)
 	newIsZero := isZero(newValue)
-	
+
 	var gas uint64
 	var refund int64
-	
+
 	if oldIsZero && !newIsZero {
 		// Setting storage from zero to non-zero
 		gas = GasSSet
@@ -150,40 +150,40 @@ func (gc *GasCalculator) CalculateStorageGas(oldValue, newValue []byte) (uint64,
 		// Modifying existing storage
 		gas = GasSReset
 	}
-	
+
 	return gas, refund
 }
 
 // CalculateCallGas calculates gas cost for contract calls
 func (gc *GasCalculator) CalculateCallGas(value *big.Int, gasAvailable uint64, gasRequested uint64, accountExists bool) (uint64, error) {
 	gas := GasCall
-	
+
 	// Add gas for value transfer
 	if value != nil && value.Sign() != 0 {
 		gas += GasCallValue
-		
+
 		// Add gas for new account creation if needed
 		if !accountExists {
 			gas += GasNewAccount
 		}
 	}
-	
+
 	// Ensure we don't exceed available gas
 	if gas > gasAvailable {
 		return 0, fmt.Errorf("insufficient gas for call")
 	}
-	
+
 	// Calculate actual gas to send
 	gasToSend := gasRequested
 	if gasToSend == 0 || gasToSend > gasAvailable-gas {
 		gasToSend = gasAvailable - gas
 	}
-	
+
 	// Apply EIP-150: all but one 64th of the remaining gas
 	if gasToSend > gasAvailable/64 {
 		gasToSend = gasAvailable - gasAvailable/64
 	}
-	
+
 	return gas + gasToSend, nil
 }
 
@@ -197,7 +197,7 @@ func (gc *GasCalculator) CalculateExpGas(exponent *big.Int) uint64 {
 	if exponent.Sign() == 0 {
 		return GasExp
 	}
-	
+
 	// Calculate number of bytes in exponent
 	expBytes := uint64(len(exponent.Bytes()))
 	return GasExp + (expBytes * GasExpByte)
@@ -234,11 +234,11 @@ func (gc *GasCalculator) ValidateGasLimit(gasLimit uint64) error {
 	if gasLimit > MaxGasLimit {
 		return fmt.Errorf("gas limit %d exceeds maximum %d", gasLimit, MaxGasLimit)
 	}
-	
+
 	if gasLimit < GasTransaction {
 		return fmt.Errorf("gas limit %d below minimum transaction cost %d", gasLimit, GasTransaction)
 	}
-	
+
 	return nil
 }
 
@@ -404,13 +404,13 @@ func (gc *GasCalculator) CalculatePrecompiledGas(address []byte, input []byte) (
 	if len(address) != 20 {
 		return 0, fmt.Errorf("invalid precompiled contract address")
 	}
-	
+
 	// Check if it's a precompiled contract (addresses 1-9)
 	var addr uint64
 	for i := 12; i < 20; i++ {
 		addr = addr*256 + uint64(address[i])
 	}
-	
+
 	switch addr {
 	case 1: // ecRecover
 		return GasEcRecover, nil
@@ -430,10 +430,10 @@ func (gc *GasCalculator) CalculatePrecompiledGas(address []byte, input []byte) (
 
 // GasTracker tracks gas usage during execution
 type GasTracker struct {
-	gasLimit    uint64
-	gasUsed     uint64
-	gasRefund   int64
-	calculator  *GasCalculator
+	gasLimit   uint64
+	gasUsed    uint64
+	gasRefund  int64
+	calculator *GasCalculator
 }
 
 // NewGasTracker creates a new gas tracker
@@ -451,7 +451,7 @@ func (gt *GasTracker) ConsumeGas(amount uint64) error {
 	if gt.gasUsed+amount > gt.gasLimit {
 		return fmt.Errorf("out of gas: need %d, have %d", amount, gt.gasLimit-gt.gasUsed)
 	}
-	
+
 	gt.gasUsed += amount
 	return nil
 }
@@ -484,12 +484,12 @@ func (gt *GasTracker) FinalizeGas() uint64 {
 	if actualRefund > maxRefund {
 		actualRefund = maxRefund
 	}
-	
+
 	finalGasUsed := int64(gt.gasUsed) - actualRefund
 	if finalGasUsed < 0 {
 		finalGasUsed = 0
 	}
-	
+
 	return uint64(finalGasUsed)
 }
 
@@ -514,7 +514,7 @@ func GetOpcodeGas(opcode byte) uint64 {
 		return GasMidStep
 	case 0x0b: // SIGNEXTEND
 		return GasFastStep
-		
+
 	// Comparison operations
 	case 0x10, 0x11, 0x12, 0x13, 0x14: // LT, GT, SLT, SGT, EQ
 		return GasFastStep
@@ -526,11 +526,11 @@ func GetOpcodeGas(opcode byte) uint64 {
 		return GasFastStep
 	case 0x1b, 0x1c, 0x1d: // SHL, SHR, SAR
 		return GasFastStep
-		
+
 	// Cryptographic operations
 	case 0x20: // SHA3
 		return GasSha3
-		
+
 	// Environmental operations
 	case 0x30: // ADDRESS
 		return GasQuickStep
@@ -564,13 +564,13 @@ func GetOpcodeGas(opcode byte) uint64 {
 		return GasFastStep
 	case 0x3f: // EXTCODEHASH
 		return GasExtCodeHash
-		
+
 	// Block operations
 	case 0x40: // BLOCKHASH
 		return GasBlockhash
 	case 0x41, 0x42, 0x43, 0x44, 0x45: // COINBASE, TIMESTAMP, NUMBER, DIFFICULTY, GASLIMIT
 		return GasQuickStep
-		
+
 	// Stack operations
 	case 0x50: // POP
 		return GasQuickStep
@@ -592,7 +592,7 @@ func GetOpcodeGas(opcode byte) uint64 {
 		return GasQuickStep
 	case 0x5b: // JUMPDEST
 		return GasJumpDest
-		
+
 	// Push operations (0x60-0x7f)
 	default:
 		if opcode >= 0x60 && opcode <= 0x7f {
@@ -610,7 +610,7 @@ func GetOpcodeGas(opcode byte) uint64 {
 		if opcode >= 0xa0 && opcode <= 0xa4 {
 			return GasLog
 		}
-		
+
 		// Default case
 		return GasFastStep
 	}

@@ -14,17 +14,17 @@ import (
 
 // SnapshotManager manages state snapshots and versioning
 type SnapshotManager struct {
-	db            db.Database
-	snapshots     map[uint64]*StateSnapshot
-	versions      []uint64
+	db             db.Database
+	snapshots      map[uint64]*StateSnapshot
+	versions       []uint64
 	currentVersion uint64
-	maxSnapshots  int
-	mu            sync.RWMutex
-	
+	maxSnapshots   int
+	mu             sync.RWMutex
+
 	// Versioning
 	versionTree   *VersionTree
 	branchManager *BranchManager
-	
+
 	// Compression and storage
 	compressor    *SnapshotCompressor
 	storageEngine *SnapshotStorage
@@ -41,33 +41,33 @@ type StateSnapshot struct {
 	Accounts    map[string]*Account
 	Storage     map[string][]byte
 	Metadata    *SnapshotMetadata
-	
+
 	// Compression info
-	Compressed   bool
+	Compressed      bool
 	CompressionType string
-	OriginalSize uint64
-	CompressedSize uint64
-	
+	OriginalSize    uint64
+	CompressedSize  uint64
+
 	// Merkle proof for verification
 	MerkleProof [][]byte
 }
 
 // SnapshotMetadata contains additional snapshot information
 type SnapshotMetadata struct {
-	Creator       string            `json:"creator"`
-	Description   string            `json:"description"`
-	Tags          []string          `json:"tags"`
-	Dependencies  []uint64          `json:"dependencies"`
-	Statistics    *SnapshotStats    `json:"statistics"`
-	Checksum      []byte            `json:"checksum"`
+	Creator      string         `json:"creator"`
+	Description  string         `json:"description"`
+	Tags         []string       `json:"tags"`
+	Dependencies []uint64       `json:"dependencies"`
+	Statistics   *SnapshotStats `json:"statistics"`
+	Checksum     []byte         `json:"checksum"`
 }
 
 // SnapshotStats contains snapshot statistics
 type SnapshotStats struct {
-	AccountCount    uint64 `json:"account_count"`
-	TransactionCount uint64 `json:"transaction_count"`
-	StorageSize     uint64 `json:"storage_size"`
-	CreationTime    time.Duration `json:"creation_time"`
+	AccountCount     uint64        `json:"account_count"`
+	TransactionCount uint64        `json:"transaction_count"`
+	StorageSize      uint64        `json:"storage_size"`
+	CreationTime     time.Duration `json:"creation_time"`
 }
 
 // VersionTree manages version relationships and branching
@@ -98,10 +98,10 @@ type Branch struct {
 
 // BranchManager manages version branches
 type BranchManager struct {
-	branches      map[string]*Branch
-	activeBranch  string
-	mergeHistory  []*MergeRecord
-	mu            sync.RWMutex
+	branches     map[string]*Branch
+	activeBranch string
+	mergeHistory []*MergeRecord
+	mu           sync.RWMutex
 }
 
 // MergeRecord tracks branch merges
@@ -121,20 +121,20 @@ type SnapshotCompressor struct {
 
 // SnapshotStorage manages snapshot storage and retrieval
 type SnapshotStorage struct {
-	db          db.Database
-	cacheSize   int
-	cache       map[uint64]*StateSnapshot
-	cacheMu     sync.RWMutex
+	db        db.Database
+	cacheSize int
+	cache     map[uint64]*StateSnapshot
+	cacheMu   sync.RWMutex
 }
 
 // DiffSnapshot represents differences between two snapshots
 type DiffSnapshot struct {
-	FromVersion uint64                    `json:"from_version"`
-	ToVersion   uint64                    `json:"to_version"`
-	Added       map[string]*Account       `json:"added"`
-	Modified    map[string]*AccountDiff   `json:"modified"`
-	Deleted     []string                  `json:"deleted"`
-	StorageDiff map[string]*StorageDiff   `json:"storage_diff"`
+	FromVersion uint64                  `json:"from_version"`
+	ToVersion   uint64                  `json:"to_version"`
+	Added       map[string]*Account     `json:"added"`
+	Modified    map[string]*AccountDiff `json:"modified"`
+	Deleted     []string                `json:"deleted"`
+	StorageDiff map[string]*StorageDiff `json:"storage_diff"`
 }
 
 // AccountDiff represents changes to an account
@@ -412,7 +412,7 @@ func (sm *SnapshotManager) calculateSnapshotHash(snapshot *StateSnapshot) []byte
 	// Create a deterministic hash of the snapshot
 	data, _ := json.Marshal(snapshot.Accounts)
 	storageData, _ := json.Marshal(snapshot.Storage)
-	
+
 	combined := append(data, storageData...)
 	return crypto.Hash(combined)
 }
@@ -421,19 +421,19 @@ func (sm *SnapshotManager) generateMerkleProof(snapshot *StateSnapshot) [][]byte
 	// Generate Merkle proof for snapshot verification
 	// This is a simplified implementation
 	proofs := make([][]byte, 0)
-	
+
 	for _, account := range snapshot.Accounts {
 		accountData, _ := json.Marshal(account)
 		proof := crypto.Hash(accountData)
 		proofs = append(proofs, proof)
 	}
-	
+
 	return proofs
 }
 
 func (sm *SnapshotManager) calculateStorageSize(snapshot *StateSnapshot) uint64 {
 	size := uint64(0)
-	
+
 	for _, account := range snapshot.Accounts {
 		size += uint64(len(account.Address))
 		size += 32 // Balance (big.Int)
@@ -442,11 +442,11 @@ func (sm *SnapshotManager) calculateStorageSize(snapshot *StateSnapshot) uint64 
 			size += uint64(len(key) + len(value))
 		}
 	}
-	
+
 	for key, value := range snapshot.Storage {
 		size += uint64(len(key) + len(value))
 	}
-	
+
 	return size
 }
 
@@ -494,7 +494,7 @@ func (sm *SnapshotManager) decompressSnapshot(snapshot *StateSnapshot) error {
 func (sm *SnapshotManager) verifySnapshot(snapshot *StateSnapshot) error {
 	// Verify snapshot integrity using Merkle proofs and checksums
 	calculatedHash := sm.calculateSnapshotHash(snapshot)
-	
+
 	if !bytes.Equal(calculatedHash, snapshot.RootHash) {
 		return fmt.Errorf("snapshot hash mismatch")
 	}
@@ -857,7 +857,7 @@ func (ss *SnapshotStorage) LoadSnapshot(version uint64) (*StateSnapshot, error) 
 
 func (ss *SnapshotStorage) DeleteSnapshot(version uint64) error {
 	key := fmt.Sprintf("snapshot_%d", version)
-	
+
 	// Remove from cache
 	ss.cacheMu.Lock()
 	delete(ss.cache, version)
